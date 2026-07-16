@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>问卷抽奖 · 拼多多风格</title>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js">
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <style>
         :root {
             --primary: #E02E24;
@@ -56,7 +55,6 @@
         }
         .bottom-nav .nav-item.active{color:var(--primary);font-weight:600;}
         .bottom-nav .nav-item .nav-icon{font-size:22px;transition:var(--transition);}
-        .bottom-nav .nav-item.active .nav-icon{transform:translateY(-2px);}
         .page{display:none;padding:16px;padding-bottom:100px;animation:fadeSlideIn 0.3s ease;}
         .page.active{display:block;}
         @keyframes fadeSlideIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
@@ -121,7 +119,6 @@
         <span style="width:34px;"></span>
     </div>
 
-    <!-- 首页 -->
     <div class="page active" id="page-home">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
             <h2 style="font-size:20px;font-weight:700;">📋 我的问卷</h2>
@@ -130,7 +127,6 @@
         <div id="surveyList"></div>
     </div>
 
-    <!-- 创建/编辑问卷 -->
     <div class="page" id="page-create">
         <h2 style="font-size:20px;font-weight:700;margin-bottom:14px;" id="createPageTitle">✏️ 创建问卷</h2>
         <div class="card">
@@ -153,18 +149,15 @@
         <button class="btn btn-primary btn-block" id="btnSaveSurvey">💾 保存问卷</button>
     </div>
 
-    <!-- 填写问卷（预览与表单） -->
     <div class="page" id="page-fill">
         <div id="fillSurveyContent"></div>
         <button class="btn btn-primary btn-block" id="btnSubmitResponse" style="margin-top:16px;display:none;">✅ 提交问卷</button>
     </div>
 
-    <!-- 统计详情 -->
     <div class="page" id="page-stats">
         <div id="statsContent"></div>
     </div>
 
-    <!-- 中奖名单 -->
     <div class="page" id="page-winners">
         <h2 style="font-size:20px;font-weight:700;margin-bottom:14px;">🏆 中奖名单</h2>
         <div id="winnersList"></div>
@@ -177,11 +170,9 @@
     <button class="btn-fab" id="fabCreate" title="创建问卷">+</button>
     <div class="toast" id="toast"></div>
 
-    <!-- 抽奖弹窗 -->
     <div class="modal-overlay" id="lotteryModal" style="display:none;">
         <div class="modal-content" id="lotteryModalContent"></div>
     </div>
-    <!-- 分享弹窗 -->
     <div class="modal-overlay" id="shareModal" style="display:none;">
         <div class="modal-content" id="shareModalContent"></div>
     </div>
@@ -189,7 +180,7 @@
 
 <script>
 (function() {
-    const STORAGE_KEY = 'survey_app_data_v3';
+    const STORAGE_KEY = 'survey_app_v4';
     function getData(){ try{ const raw=localStorage.getItem(STORAGE_KEY); if(!raw) return {surveys:[],responses:[],winners:[]}; return JSON.parse(raw); }catch(e){ return {surveys:[],responses:[],winners:[]}; } }
     function saveData(d){ localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
     function generateId(p='id'){ return p+'_'+Date.now()+'_'+Math.random().toString(36).substring(2,8); }
@@ -197,7 +188,6 @@
     let currentPage='home', editingSurveyId=null, fillingSurveyId=null, viewingStatsSurveyId=null;
     let pendingLotteryResponseId=null, pendingLotterySurveyId=null;
     let tempQuestions=[], tempPrizes='', fillAnswers={}, fillPreviewMode=true;
-    // 从URL导入的临时问卷（用于外部填写）
     let externalSurvey = null;
 
     const $ = s => document.querySelector(s);
@@ -213,28 +203,25 @@
     function showToast(msg,d=1800){ clearTimeout(toastTimer); toast.textContent=msg; toast.classList.add('show'); toastTimer=setTimeout(()=>toast.classList.remove('show'),d); }
     function escapeHtml(s){ if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
-    // 从URL参数解析问卷数据
+    // 解析 Base64 编码的问卷数据
     function parseSurveyFromUrl() {
         const hash = location.hash;
-        if (hash.includes('?')) {
-            const queryString = hash.split('?')[1];
-            const params = new URLSearchParams(queryString);
-            const dataParam = params.get('data');
-            if (dataParam) {
-                try {
-                    const survey = JSON.parse(decodeURIComponent(dataParam));
-                    if (survey && survey.title && survey.questions) {
-                        // 临时存入localStorage以便后续统计（如果用户愿意）
-                        const data = getData();
-                        if (!data.surveys.find(s => s.id === survey.id)) {
-                            data.surveys.push(survey);
-                            saveData(data);
-                        }
-                        return survey;
+        if (hash.includes('?d=')) {
+            try {
+                const base64 = hash.split('?d=')[1].split('&')[0];
+                const json = decodeURIComponent(escape(atob(base64)));
+                const survey = JSON.parse(json);
+                if (survey && survey.title && survey.questions) {
+                    const data = getData();
+                    if (!data.surveys.find(s => s.id === survey.id)) {
+                        data.surveys.push(survey);
+                        saveData(data);
                     }
-                } catch (e) {
-                    console.warn('无法解析问卷数据', e);
+                    return survey;
                 }
+            } catch (e) {
+                console.error('问卷解码失败', e);
+                showToast('链接已损坏，无法打开问卷');
             }
         }
         return null;
@@ -249,7 +236,7 @@
         document.getElementById('fabCreate').style.display = (name==='home'||name==='winners')?'flex':'none';
         app.scrollIntoView({behavior:'smooth',block:'start'});
         if(push){
-            const h={home:'#/',create:'#/create',fill: location.hash.includes('?') ? location.hash : '#/fill/'+(fillingSurveyId||''),stats:'#/stats/'+(viewingStatsSurveyId||''),winners:'#/winners'};
+            const h={home:'#/',create:'#/create',fill: location.hash.includes('?d=') ? location.hash : '#/fill/'+(fillingSurveyId||''),stats:'#/stats/'+(viewingStatsSurveyId||''),winners:'#/winners'};
             history.pushState({page:name},'',h[name]||'#/');
         }
         refreshPage(name);
@@ -274,7 +261,6 @@
         else if(name==='winners') renderWinnersPage();
     }
 
-    // 首页渲染
     function renderHomePage(){
         const data=getData();
         if(data.surveys.length===0){
@@ -312,17 +298,19 @@
         saveData(data); showToast('已删除'); renderHomePage(); renderWinnersPage();
     }
 
+    // 生成 Base64 分享链接
     function openShareModal(surveyId){
         const data = getData();
         const survey = data.surveys.find(s => s.id === surveyId);
         if (!survey) return;
-        // 将问卷数据编码到URL中，实现跨设备打开
-        const surveyData = encodeURIComponent(JSON.stringify(survey));
-        const url = location.origin + location.pathname + '#/fill?data=' + surveyData;
+
+        const json = JSON.stringify(survey);
+        const base64 = btoa(unescape(encodeURIComponent(json)));
+        const url = location.origin + location.pathname + '#/fill?d=' + base64;
+
         shareModalContent.innerHTML = `
             <h3 style="text-align:center;">📤 分享问卷</h3>
             <p style="text-align:center;font-size:13px;color:#666;">扫描二维码或复制链接发给好友</p>
-            <p style="text-align:center;font-size:11px;color:#E02E24;">链接已包含问卷内容，任何人点击均可填写</p>
             <canvas id="qrcodeCanvas"></canvas>
             <div class="share-link-box" id="shareLinkText">${url}</div>
             <button class="btn btn-primary btn-block" id="btnCopyLink">📋 复制链接</button>
@@ -333,11 +321,10 @@
             QRCode.toCanvas(document.getElementById('qrcodeCanvas'), url, {width:180, margin:1, color:{dark:'#E02E24',light:'#FFFFFF'}});
         }
         document.getElementById('btnCopyLink').onclick=()=>navigator.clipboard.writeText(url).then(()=>showToast('链接已复制！')).catch(()=>showToast('复制失败，请手动复制'));
-        document.getElementById('btnCloseShare').onclick=()=>shareModal.style.display='none';
-        shareModal.onclick=e=>{if(e.target===shareModal) shareModal.style.display='none';};
+        document.getElementById('btnCloseShare').onclick=()=>{shareModal.style.display='none';};
+        shareModal.onclick=e=>{if(e.target===shareModal)shareModal.style.display='none';};
     }
 
-    // 创建页 (保持不变)
     function renderCreatePage(){
         const data=getData();
         if(editingSurveyId){
@@ -382,26 +369,15 @@
         saveData(data); showToast(editingSurveyId?'已更新':'创建成功！🎉'); editingSurveyId=null; switchPage('home');
     }
 
-    // 填写页 - 支持外部数据
     function renderFillPage(){
-        let survey = null;
-        if (externalSurvey) {
-            survey = externalSurvey;
-        } else if (fillingSurveyId) {
-            const data = getData();
-            survey = data.surveys.find(s => s.id === fillingSurveyId);
-        }
-        if (!survey) {
-            fillSurveyContent.innerHTML = '<div class="empty-state"><p>问卷不存在或链接已失效</p></div>';
-            document.getElementById('btnSubmitResponse').style.display = 'none';
+        let survey = externalSurvey || (fillingSurveyId ? getData().surveys.find(s=>s.id===fillingSurveyId) : null);
+        if(!survey){
+            fillSurveyContent.innerHTML='<div class="empty-state"><p>问卷不存在或链接已失效</p></div>';
+            document.getElementById('btnSubmitResponse').style.display='none';
             return;
         }
-
-        // 如果是从外部链接进入，统计填写人数基于本地数据
-        const data = getData();
-        const respCount = data.responses.filter(r => r.surveyId === survey.id).length;
-
-        if (fillPreviewMode) {
+        const respCount = getData().responses.filter(r=>r.surveyId===survey.id).length;
+        if(fillPreviewMode){
             fillSurveyContent.innerHTML = `
                 <div class="card" style="text-align:center;padding:30px 16px;">
                     <div class="preview-icon">📋</div>
@@ -415,15 +391,12 @@
                     </div>
                     <button class="btn btn-primary btn-block" id="btnStartFill">✍️ 开始填写问卷</button>
                 </div>`;
-            document.getElementById('btnStartFill').onclick = ()=>{
-                fillPreviewMode = false;
-                renderFillPage();
-            };
+            document.getElementById('btnStartFill').onclick = ()=>{ fillPreviewMode = false; renderFillPage(); };
             document.getElementById('btnSubmitResponse').style.display = 'none';
-        } else {
+        }else{
             fillAnswers = {};
             fillSurveyContent.innerHTML = `
-                <div class="card" style="background:var(--primary-gradient);color:#fff;"><h3>📋 ${escapeHtml(survey.title)}</h3><p style="font-size:12px;">${survey.questions.length}题 · 完成后可获得抽奖机会</p></div>
+                <div class="card" style="background:var(--primary-gradient);color:#fff;"><h3>📋 ${escapeHtml(survey.title)}</h3><p>${survey.questions.length}题 · 完成后可抽奖</p></div>
                 ${survey.questions.map((q,qi)=> q.type==='choice'?`
                     <div class="question-block"><span class="q-type-tag">🔘 选择题</span><div class="q-title">${qi+1}. ${escapeHtml(q.title)}</div>
                     <div class="choice-options" data-qid="${q.id}">${(q.options||[]).map(opt=>`<div class="option-item" data-val="${escapeHtml(opt)}"><div class="option-radio"></div><span>${escapeHtml(opt)}</span></div>`).join('')}</div></div>`:`
@@ -447,11 +420,11 @@
 
     function submitResponse(){
         const data = getData();
-        const survey = externalSurvey || data.surveys.find(s => s.id === fillingSurveyId);
-        if (!survey) return;
-        for (const q of survey.questions) {
+        const survey = externalSurvey || data.surveys.find(s=>s.id===fillingSurveyId);
+        if(!survey) return;
+        for(const q of survey.questions){
             const a = fillAnswers[q.id];
-            if (!a || (typeof a === 'string' && a.trim() === '')) { showToast('请回答所有问题'); return; }
+            if(!a || (typeof a==='string' && a.trim()==='')){ showToast('请回答所有问题'); return; }
         }
         const resp = { id: generateId('resp'), surveyId: survey.id, answers: { ...fillAnswers }, submittedAt: Date.now() };
         data.responses.push(resp);
@@ -485,7 +458,6 @@
         document.getElementById('btnSkip').onclick = () => { lotteryModal.style.display = 'none'; pendingLotteryResponseId = null; switchPage('home'); };
     }
 
-    // 统计页
     function renderStatsPage(){
         const data=getData(); const survey=data.surveys.find(s=>s.id===viewingStatsSurveyId);
         if(!survey){statsContent.innerHTML='<div class="empty-state"><p>问卷不存在</p></div>';return;}
@@ -517,22 +489,15 @@
         const data=getData(); const winners=data.winners.sort((a,b)=>b.createdAt-a.createdAt);
         winnersListEl.innerHTML=winners.length? winners.map(w=>{
             const survey=data.surveys.find(s=>s.id===w.surveyId);
-            return `<div class="card"><div style="display:flex;align-items:center;gap:12px;"><div class="avatar-circle" style="background:linear-gradient(135deg,#FFB800,#FFD54F);color:#5D3A00;">🎁</div><div class="item-info"><div class="item-name">${escapeHtml(w.name)}</div><div class="item-detail">📱 ${escapeHtml(w.phone)}</div><div class="item-detail">📋 ${escapeHtml(survey?.title||'已删除')}</div></div><div class="item-prize">${escapeHtml(w.prize)}</div></div><div style="font-size:10px;color:#bbb;text-align:right;">${new Date(w.createdAt).toLocaleString()}</div></div>`;
-        }).join('') : '<div class="empty-state"><div class="empty-icon">🎯</div><p>暂无中奖记录</p></div>';
+            return `<div class="card"><div style="display:flex;align-items:center;gap:12px;"><div class="avatar-circle" style="background:linear-gradient(135deg,#FFB800,#FFD54F);color:#5D3A00;">🎁</div><div class="item-info"><div class="item-name">${escapeHtml(w.name)}</div><div class="item-detail">📱 ${escapeHtml(w.phone)}</div><div class="item-detail">📋 ${escapeHtml(survey?.title||'已删除')}</div></div><div class="item-prize">${escapeHtml(w.prize)}</div></div></div>`;
+        }).join('') : '<div class="empty-state"><p>暂无中奖记录</p></div>';
     }
 
-    // 导航事件
+    // 导航
     navBackBtn.onclick = ()=>{
-        if (currentPage === 'fill' && !fillPreviewMode) {
-            fillPreviewMode = true;
-            renderFillPage();
-            return;
-        }
-        if (currentPage === 'create' && tempQuestions.length && !editingSurveyId && !confirm('放弃编辑？')) return;
-        editingSurveyId = null;
-        fillPreviewMode = true;
-        externalSurvey = null;
-        switchPage('home');
+        if (currentPage==='fill' && !fillPreviewMode) { fillPreviewMode=true; renderFillPage(); return; }
+        if (currentPage==='create' && tempQuestions.length && !editingSurveyId && !confirm('放弃编辑？')) return;
+        editingSurveyId=null; fillPreviewMode=true; externalSurvey=null; switchPage('home');
     };
     document.querySelectorAll('.bottom-nav .nav-item').forEach(item=>item.onclick=function(){switchPage(this.dataset.page);});
     document.getElementById('fabCreate').onclick=()=>{editingSurveyId=null;switchPage('create');};
@@ -545,19 +510,16 @@
 
     function handleHash(){
         const hash = location.hash;
-        if (hash.startsWith('#/fill')) {
-            // 检查是否带有data参数
-            if (hash.includes('?data=')) {
-                const survey = parseSurveyFromUrl();
-                if (survey) {
-                    externalSurvey = survey;
-                    fillingSurveyId = survey.id;
-                    fillPreviewMode = true;
-                    switchPage('fill', false);
-                    return;
-                }
+        if (hash.includes('?d=')) {
+            const survey = parseSurveyFromUrl();
+            if (survey) {
+                externalSurvey = survey;
+                fillingSurveyId = survey.id;
+                fillPreviewMode = true;
+                switchPage('fill', false);
+                return;
             }
-            // 普通的surveyId模式
+        } else if (hash.startsWith('#/fill/')) {
             const surveyId = hash.replace('#/fill/', '').split('?')[0];
             if (surveyId) {
                 fillingSurveyId = surveyId;
@@ -569,8 +531,7 @@
             viewingStatsSurveyId = hash.replace('#/stats/', '');
             switchPage('stats', false);
         } else if (hash === '#/create') {
-            editingSurveyId = null;
-            switchPage('create', false);
+            editingSurveyId = null; switchPage('create', false);
         } else if (hash === '#/winners') {
             switchPage('winners', false);
         } else {
@@ -580,14 +541,13 @@
     window.addEventListener('hashchange', handleHash);
     window.addEventListener('popstate', e => {
         if (e.state?.page) {
-            if (e.state.page === 'fill') fillPreviewMode = true;
+            if (e.state.page==='fill') fillPreviewMode=true;
             switchPage(e.state.page, false);
         } else handleHash();
     });
 
     if (location.hash) handleHash();
     else { switchPage('home', false); history.replaceState({page:'home'},'','#/'); }
-
 })();
 </script>
 </body>
